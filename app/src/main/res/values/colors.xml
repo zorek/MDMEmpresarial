@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#667eea</color>
+    <color name="purple_700">#764ba2</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- MDM Colors -->
+    <color name="mdm_primary">#667eea</color>
+    <color name="mdm_primary_dark">#764ba2</color>
+    <color name="mdm_accent">#2196F3</color>
+    <color name="mdm_success">#4CAF50</color>
+    <color name="mdm_warning">#ff9800</color>
+    <color name="mdm_danger">#ff6b6b</color>
+</resources>

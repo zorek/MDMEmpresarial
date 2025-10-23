@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- ⚠️ SOLO PARA DESARROLLO -->
+    <!-- En producción, quita cleartextTrafficPermitted o limítalo a dominios específicos -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Para tu dominio específico -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">mdm.pfsmx.app</domain>
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

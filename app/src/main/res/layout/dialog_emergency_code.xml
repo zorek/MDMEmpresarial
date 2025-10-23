@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/emergencyStatusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🔒 Modo normal"
+        android:textSize="14sp"
+        android:textColor="@android:color/darker_gray"
+        android:padding="12dp"
+        android:background="#F5F5F5"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Código de Emergencia (6 dígitos):"
+        android:textSize="14sp"
+        android:textColor="@android:color/black"
+        android:layout_marginBottom="8dp"/>
+
+    <EditText
+        android:id="@+id/emergencyCodeInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="number"
+        android:maxLength="6"
+        android:hint="123456"
+        android:textSize="24sp"
+        android:textAlignment="center"
+        android:padding="16dp"
+        android:background="@android:drawable/edit_text"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="⚠️ Este código permite desbloquear temporalmente el dispositivo sin conexión a internet."
+        android:textSize="12sp"
+        android:textColor="@android:color/holo_orange_dark"
+        android:layout_marginTop="12dp"/>
+
+</LinearLayout>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme -->
+    <style name="Theme.MDMEmpresarial" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">#667eea</item>
+        <item name="colorPrimaryDark">#764ba2</item>
+        <item name="colorAccent">#2196F3</item>
+
+        <!-- Status bar color -->
+        <item name="android:statusBarColor">@color/purple_700</item>
+
+        <!-- AlertDialog theme -->
+        <item name="alertDialogTheme">@style/AlertDialogTheme</item>
+    </style>
+
+    <!-- AlertDialog custom theme -->
+    <style name="AlertDialogTheme" parent="Theme.AppCompat.Light.Dialog.Alert">
+        <item name="colorAccent">#667eea</item>
+        <item name="android:textColorPrimary">#333333</item>
+    </style>
+</resources>
