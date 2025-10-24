@@ -35,9 +35,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" /> <!-- Overlay permission -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" /> <!-- Batería -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
 
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
@@ -131,7 +129,7 @@
             android:name=".service.UnifiedSyncService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="dataSync|dataSync" /> <!-- Alias de compatibilidad (opcional) -->
+            android:foregroundServiceType="dataSync" /> <!-- Alias de compatibilidad (opcional) -->
         <service
             android:name=".service.SyncService"
             android:enabled="true"

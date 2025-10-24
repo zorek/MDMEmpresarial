@@ -28,6 +28,8 @@ import kotlinx.coroutines.*
  * 3. Reaplicación de políticas cuando expira la emergencia
  */
 open class UnifiedSyncService : Service() {
+    private var syncRetryCount = 0
+    private val maxRetries = 3
 
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private lateinit var policyManager: PolicyManager
@@ -103,9 +105,8 @@ open class UnifiedSyncService : Service() {
 
         syncJob = serviceScope.launch {
             // Primera sincronización inmediata
-            delay(5000) // Esperar 5 segundos
+            delay(5000)
             tick("Primera sync")
-
             syncPolicies()
 
             // Sincronizaciones periódicas
@@ -113,14 +114,29 @@ open class UnifiedSyncService : Service() {
                 try {
                     delay(SYNC_INTERVAL_MS)
                     tick("Sync periódica")
-
                     syncPolicies()
+                    syncRetryCount = 0 // Reset en éxito
+
                 } catch (e: CancellationException) {
                     Log.i(TAG, "🛑 Sincronización periódica cancelada")
                     break
+
                 } catch (e: Exception) {
-                    Log.e(TAG, "❌ Error en sincronización periódica: ${e.message}")
-                    delay(60000) // Esperar 1 minuto antes de reintentar
+                    Log.e(TAG, "❌ Error en sync: ${e.message}")
+                    syncRetryCount++
+
+                    // Exponential backoff
+                    val backoffTime = when {
+                        syncRetryCount >= maxRetries -> 300000L // 5 min
+                        syncRetryCount == 2 -> 120000L // 2 min
+                        syncRetryCount == 1 -> 60000L  // 1 min
+                        else -> 30000L // 30 seg
+                    }
+
+                    Log.w(TAG, "⏳ Reintento $syncRetryCount/$maxRetries en ${backoffTime/1000}s")
+                    updateNotification("⚠️ Error sync - reintento en ${backoffTime/1000}s")
+
+                    delay(backoffTime)
                 }
             }
         }
@@ -288,6 +304,7 @@ open class UnifiedSyncService : Service() {
             if (success) {
                 Log.i(TAG, "✅ Sincronización exitosa")
                 updateNotification("✅ Sincronizado")
+                checkAutoUpdates()
             } else {
                 Log.w(TAG, "⚠️ Sincronización con advertencias")
                 updateNotification("⚠️ Sincronizado con advertencias")
@@ -299,6 +316,29 @@ open class UnifiedSyncService : Service() {
             updateNotification("❌ Error de sincronización")
         }
     }
+
+
+
+    private suspend fun checkAutoUpdates() {
+        try {
+            Log.i(TAG, "🔄 Verificando auto-updates...")
+
+            val autoUpdateManager = com.pfsmx.mdmempresarial.manager.AutoUpdateManager(this)
+            val updatedCount = autoUpdateManager.checkAndApplyUpdates()
+
+            if (updatedCount > 0) {
+                Log.i(TAG, "✅ $updatedCount apps actualizadas automáticamente")
+                updateNotification("✅ $updatedCount apps actualizadas")
+            } else {
+                Log.d(TAG, "ℹ️ No hay actualizaciones disponibles")
+            }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error verificando auto-updates: ${e.message}")
+        }
+    }
+
+
 
     /**
      * Verifica el estado del modo emergencia
@@ -383,11 +423,20 @@ open class UnifiedSyncService : Service() {
     /**
      * Actualiza el texto de la notificación
      */
-    private fun updateNotification(contentText: String) {
+    private fun updateNotification(message: String) {
         try {
-            val notification = createNotification(contentText)
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("MDM Empresarial")
+                .setContentText(message)
+                .setSmallIcon(com.google.android.material.R.drawable.m3_split_button_chevron_avd)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(true)
+                .setShowWhen(true)
+                .build()
+
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.notify(NOTIFICATION_ID, notification)
+
         } catch (e: Exception) {
             Log.e(TAG, "Error actualizando notificación: ${e.message}")
         }

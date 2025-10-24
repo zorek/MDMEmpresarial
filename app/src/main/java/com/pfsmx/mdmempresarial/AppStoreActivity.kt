@@ -34,6 +34,10 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
+import com.pfsmx.mdmempresarial.utils.AppUtils
+import com.pfsmx.mdmempresarial.utils.AppUtils.formatFileSize
+import com.pfsmx.mdmempresarial.utils.AppUtils.getInstalledVersionCode
+import com.pfsmx.mdmempresarial.utils.AppUtils.isAppInstalled
 
 class AppStoreActivity : AppCompatActivity() {
     private val dpm by lazy {
@@ -99,6 +103,22 @@ class AppStoreActivity : AppCompatActivity() {
             loadApps()
         }
     }
+
+    // ==================== UTILIDADES ====================
+
+    private fun isAppInstalled(packageName: String): Boolean {
+        return AppUtils.isAppInstalled(this, packageName)
+    }
+
+    private fun getInstalledVersionCode(packageName: String): Int {
+        return AppUtils.getInstalledVersionCode(this, packageName)
+    }
+
+    private fun formatFileSize(bytes: Long): String {
+        return AppUtils.formatFileSize(bytes)
+    }
+
+    // ELIMINAR las versiones antiguas de estas funciones (si existen)
 
     private fun loadApps() {
         progressBar.visibility = View.VISIBLE
@@ -999,30 +1019,7 @@ class AppStoreActivity : AppCompatActivity() {
     }
     // ==================== UTILIDADES ====================
 
-    private fun isAppInstalled(packageName: String): Boolean {
-        return try {
-            packageManager.getPackageInfo(packageName, 0)
-            Log.d(TAG, "✅ App encontrada: $packageName")
-            true
-        } catch (e: Exception) {
-            Log.d(TAG, "❌ App no encontrada: $packageName")
-            false
-        }
-    }
 
-    private fun getInstalledVersionCode(packageName: String): Int {
-        return try {
-            val packageInfo = packageManager.getPackageInfo(packageName, 0)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode.toInt()
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.versionCode
-            }
-        } catch (e: Exception) {
-            0
-        }
-    }
 
     private fun getCategoryName(category: String): String {
         return when (category) {
@@ -1050,15 +1047,7 @@ class AppStoreActivity : AppCompatActivity() {
         }
     }
 
-    private fun formatFileSize(bytes: Long): String {
-        if (bytes < 1024) return "$bytes B"
-        val kb = bytes / 1024.0
-        if (kb < 1024) return "%.1f KB".format(kb)
-        val mb = kb / 1024.0
-        if (mb < 1024) return "%.1f MB".format(mb)
-        val gb = mb / 1024.0
-        return "%.1f GB".format(gb)
-    }
+
 
     override fun onSupportNavigateUp(): Boolean {
         finish()
@@ -1170,28 +1159,8 @@ class AppStoreAdapter(
         }
     }
 
-    private fun isAppInstalled(context: Context, packageName: String): Boolean {
-        return try {
-            context.packageManager.getPackageInfo(packageName, 0)
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
 
-    private fun getInstalledVersionCode(context: Context, packageName: String): Int {
-        return try {
-            val packageInfo = context.packageManager.getPackageInfo(packageName, 0)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.longVersionCode.toInt()
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.versionCode
-            }
-        } catch (e: Exception) {
-            0
-        }
-    }
+
 }
 
 
