@@ -4,7 +4,10 @@
     <!-- Permisos necesarios para MDM -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Después de </application>, agregar: -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"
+        android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.INSTALL_PACKAGES" />
@@ -129,7 +132,9 @@
             android:name=".service.UnifiedSyncService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="dataSync" /> <!-- Alias de compatibilidad (opcional) -->
+            android:stopWithTask="true"
+
+        android:foregroundServiceType="dataSync" /> <!-- Alias de compatibilidad (opcional) -->
         <service
             android:name=".service.SyncService"
             android:enabled="true"

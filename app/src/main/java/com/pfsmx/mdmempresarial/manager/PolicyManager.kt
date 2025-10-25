@@ -31,6 +31,18 @@ class PolicyManager(private val context: Context) {
         private const val PREF_EMERGENCY_CODE_TIMESTAMP = "emergency_code_timestamp"
         private const val PREF_CURRENT_POLICY = "current_policy"
         private const val PREF_EMERGENCY_UNLOCK_UNTIL = "emergency_unlock_until"
+
+        private val MOTO_G24_DANGEROUS_POLICIES = listOf(
+            "forceLocationOn",
+            "preventLocationToggle",
+            "blockWifiConfig",
+            "blockBluetoothConfig",
+            "blockFactoryReset",
+            "disableStatusBar",
+            "blockAirplaneMode"  // Agregar si causa problemas
+        )
+
+
     }
 
     // ==================== VERIFICACIONES ====================
@@ -66,7 +78,60 @@ class PolicyManager(private val context: Context) {
     }
 
 
+    private fun sanitizePolicyForCurrentDevice(policy: JSONObject): JSONObject {
+        val model = Build.MODEL.lowercase()
+        val manufacturer = Build.MANUFACTURER.lowercase()
 
+        // Crear copia de la política
+        val sanitizedPolicy = JSONObject(policy.toString())
+
+        // ═══════════════════════════════════════════════════════════
+        // VERIFICACIÓN ESPECÍFICA PARA MOTO G24
+        // ═══════════════════════════════════════════════════════════
+        if (manufacturer.contains("motorola") && model.contains("g24")) {
+            Log.w(TAG, "════════════════════════════════════════")
+            Log.w(TAG, "⚠️ MOTO G24 DETECTADO - FILTRANDO POLÍTICAS PELIGROSAS")
+            Log.w(TAG, "════════════════════════════════════════")
+
+            val restrictions = sanitizedPolicy.optJSONObject("systemRestrictions")
+
+            if (restrictions != null) {
+                var policiesRemoved = 0
+
+                // Verificar y remover cada política peligrosa
+                for (dangerous in MOTO_G24_DANGEROUS_POLICIES) {
+                    if (restrictions.has(dangerous) && restrictions.optBoolean(dangerous, false)) {
+                        // Remover la política peligrosa
+                        restrictions.remove(dangerous)
+                        policiesRemoved++
+
+                        Log.w(TAG, "  🚫 OMITIDA: '$dangerous' (causa bootloop en Moto G24)")
+                    }
+                }
+
+                if (policiesRemoved > 0) {
+                    Log.w(TAG, "════════════════════════════════════════")
+                    Log.w(TAG, "📊 RESUMEN: $policiesRemoved política(s) peligrosa(s) omitida(s)")
+                    Log.w(TAG, "✅ Las demás políticas SÍ se aplicarán")
+                    Log.w(TAG, "════════════════════════════════════════")
+                } else {
+                    Log.i(TAG, "✅ No se encontraron políticas peligrosas - Aplicando todas")
+                    Log.w(TAG, "════════════════════════════════════════")
+                }
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // AQUÍ PUEDES AGREGAR MÁS MODELOS SI ES NECESARIO
+        // ═══════════════════════════════════════════════════════════
+
+        // Ejemplo para Samsung:
+        // if (manufacturer.contains("samsung")) {
+        //     // Filtrar políticas específicas de Samsung
+        // }
+
+        return sanitizedPolicy
+    }
 
 
 
@@ -374,6 +439,8 @@ class PolicyManager(private val context: Context) {
         Log.i(TAG, "════════════════════════════════════════")
 
         try {
+
+
             // 1. Desbloquear apps
             unblockAllApps()
 
@@ -390,6 +457,14 @@ class PolicyManager(private val context: Context) {
             } catch (e: Exception) {
                 Log.w(TAG, "⚠️ Error limpiando políticas de navegador en clearAllPolicies: ${e.message}")
             }
+
+            try {
+                dpm.clearUserRestriction(componentName, android.os.UserManager.DISALLOW_AIRPLANE_MODE)
+            } catch (e: Exception) {
+                Log.w(TAG, "No se pudo limpiar DISALLOW_AIRPLANE_MODE: ${e.message}")
+            }
+
+
 
 
             try {
@@ -414,7 +489,57 @@ class PolicyManager(private val context: Context) {
     }
 
 
+    private fun isSafePolicyForCurrentDevice(policy: JSONObject): Boolean {
+        val model = Build.MODEL.lowercase()
+        val manufacturer = Build.MANUFACTURER.lowercase()
 
+        // ═══════════════════════════════════════════════════════════
+        // VERIFICACIÓN ESPECÍFICA PARA MOTO G24
+        // ═══════════════════════════════════════════════════════════
+        if (manufacturer.contains("motorola") && model.contains("g24")) {
+            Log.i(TAG, "🔍 Verificando política para Moto G24...")
+
+            val restrictions = policy.optJSONObject("systemRestrictions")
+
+            if (restrictions != null) {
+                // Verificar cada política peligrosa
+                for (dangerous in MOTO_G24_DANGEROUS_POLICIES) {
+                    if (restrictions.optBoolean(dangerous, false)) {
+                        Log.e(TAG, "════════════════════════════════════════")
+                        Log.e(TAG, "❌ POLÍTICA NO SEGURA DETECTADA")
+                        Log.e(TAG, "════════════════════════════════════════")
+                        Log.e(TAG, "Dispositivo: ${Build.MODEL} (${Build.MANUFACTURER})")
+                        Log.e(TAG, "Política peligrosa: '$dangerous'")
+                        Log.e(TAG, "Esta política causa bootloop en Moto G24")
+                        Log.e(TAG, "════════════════════════════════════════")
+                        return false
+                    }
+                }
+
+                // Verificación especial: combinación de ubicación
+                val forceLocation = restrictions.optBoolean("forceLocationOn", false)
+                val preventToggle = restrictions.optBoolean("preventLocationToggle", false)
+
+                if (forceLocation && preventToggle) {
+                    Log.e(TAG, "❌ Combinación peligrosa: forceLocationOn + preventLocationToggle")
+                    return false
+                }
+
+                Log.i(TAG, "✅ Política verificada - SEGURA para Moto G24")
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // AQUÍ PUEDES AGREGAR VERIFICACIONES PARA OTROS MODELOS
+        // ═══════════════════════════════════════════════════════════
+
+        // Ejemplo para Samsung:
+        // if (manufacturer.contains("samsung")) {
+        //     // Verificaciones específicas de Samsung
+        // }
+
+        return true
+    }
 
 
 
@@ -428,6 +553,28 @@ class PolicyManager(private val context: Context) {
             Log.i(TAG, "📋 APLICANDO POLÍTICA DINÁMICA")
             Log.i(TAG, "════════════════════════════════════════")
 
+            val sanitizedPolicy = sanitizePolicyForCurrentDevice(policy)
+
+            // ✅ AGREGAR ESTA VERIFICACIÓN AL INICIO:
+            // Verificar si la política es segura para este dispositivo
+            if (!isSafePolicyForCurrentDevice(sanitizedPolicy)) {
+                Log.e(TAG, "════════════════════════════════════════")
+                Log.e(TAG, "❌ POLÍTICA RECHAZADA")
+                Log.e(TAG, "════════════════════════════════════════")
+                Log.e(TAG, "La política contiene configuraciones peligrosas")
+                Log.e(TAG, "para ${Build.MODEL} (${Build.MANUFACTURER})")
+                Log.e(TAG, "Activando modo seguro preventivo...")
+                Log.e(TAG, "════════════════════════════════════════")
+
+                SafetyManager.activateSafeMode(
+                    context,
+                    "Política no segura para ${Build.MODEL}"
+                )
+
+                return@withContext false
+            }
+
+
             if (!isDeviceOwner()) {
                 Log.e(TAG, "❌ No somos Device Owner")
                 return@withContext false
@@ -439,8 +586,18 @@ class PolicyManager(private val context: Context) {
                 return@withContext true
             }
 
+
+
+
+
+
             val policyName = policy.optString("name", "Desconocida")
             Log.i(TAG, "Política: $policyName")
+            Log.i(TAG, "Modelo: ${Build.MODEL} (${Build.MANUFACTURER})")
+            Log.i(TAG, "════════════════════════════════════════")
+
+
+
 
             // ✅ NUEVO: Limpiar políticas anteriores ANTES de aplicar la nueva
             Log.i(TAG, "🧹 Limpiando políticas anteriores...")
@@ -448,22 +605,22 @@ class PolicyManager(private val context: Context) {
             removeAllRestrictions()
 
             // Guardar política localmente
-            saveCurrentPolicy(policy.toString())
+            saveCurrentPolicy(sanitizedPolicy.toString())
 
             // 1. Aplicar restricciones de apps
-            applyAppRestrictions(policy)
+            applyAppRestrictions(sanitizedPolicy)
 
             // 2. Aplicar restricciones del sistema
-            applySystemRestrictions(policy)
+            applySystemRestrictions(sanitizedPolicy)
 
             // 3. Aplicar políticas de navegador
-            applyBrowserPolicies(policy)
+            applyBrowserPolicies(sanitizedPolicy)
 
             // 4. Configurar apps de delivery
-            configureDeliveryApps(policy)
+            configureDeliveryApps(sanitizedPolicy)
 
 
-            if (policy.optJSONObject("dev")?.optBoolean("allowUsbDebugging", false) == true) {
+            if (sanitizedPolicy.optJSONObject("dev")?.optBoolean("allowUsbDebugging", false) == true) {
                 try {
                     dpm.clearUserRestriction(componentName, android.os.UserManager.DISALLOW_DEBUGGING_FEATURES)
                     Log.i(TAG, "✅ Developer Options/ADB permitidos por política")
@@ -559,6 +716,12 @@ class PolicyManager(private val context: Context) {
             if (restrictions.optBoolean("blockHotspot")) {
                 addUserRestriction(android.os.UserManager.DISALLOW_CONFIG_TETHERING)
                 Log.i(TAG, "  🚫 Hotspot bloqueado")
+            }
+
+            // ✅ AGREGAR ESTO:
+            if (restrictions.optBoolean("blockAirplaneMode")) {
+                addUserRestriction(android.os.UserManager.DISALLOW_AIRPLANE_MODE)
+                Log.i(TAG, "  ✈️ Modo avión bloqueado (no pueden activar/desactivar)")
             }
 
             if (restrictions.optBoolean("blockInstallation")) {

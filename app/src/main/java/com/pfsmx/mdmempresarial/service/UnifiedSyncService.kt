@@ -1,6 +1,5 @@
 package com.pfsmx.mdmempresarial.service
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -8,17 +7,15 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
-import android.location.Location
-import android.location.LocationManager
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import com.pfsmx.mdmempresarial.MainActivity
 import com.pfsmx.mdmempresarial.R
 import com.pfsmx.mdmempresarial.api.MDMApiClient
 import com.pfsmx.mdmempresarial.manager.PolicyManager
+import com.pfsmx.mdmempresarial.manager.SafetyManager
 import kotlinx.coroutines.*
 
 /**
@@ -26,6 +23,8 @@ import kotlinx.coroutines.*
  * 1. Sincronización periódica con el servidor
  * 2. Monitoreo del modo de emergencia
  * 3. Reaplicación de políticas cuando expira la emergencia
+ *
+ * ✅ ACTUALIZADO: Intervalos más largos para mayor estabilidad
  */
 open class UnifiedSyncService : Service() {
     private var syncRetryCount = 0
@@ -35,8 +34,6 @@ open class UnifiedSyncService : Service() {
     private lateinit var policyManager: PolicyManager
 
     private var locationUpdateJob: Job? = null
-
-
     private var syncJob: Job? = null
     private var emergencyMonitorJob: Job? = null
 
@@ -45,8 +42,10 @@ open class UnifiedSyncService : Service() {
         private const val CHANNEL_ID = "mdm_sync_channel"
         private const val NOTIFICATION_ID = 1001
 
-        private const val SYNC_INTERVAL_MS = 300000L // 5 minutos
-        private const val EMERGENCY_CHECK_INTERVAL_MS = 60000L // 1 minuto
+        // ✅ ACTUALIZADO: Intervalos más largos para reducir consumo y evitar conflictos
+        private const val SYNC_INTERVAL_MS = 1800000L // 30 minutos (antes 5 minutos)
+        private const val LOCATION_INTERVAL_MS = 3600000L // 60 minutos (antes 15 minutos)
+        private const val EMERGENCY_CHECK_INTERVAL_MS = 60000L // 1 minuto (sin cambios)
     }
 
     override fun onCreate() {
@@ -60,9 +59,16 @@ open class UnifiedSyncService : Service() {
         Log.i(TAG, "🔄 UnifiedSyncService iniciado")
         tick("Servicio iniciado")
 
-
         val notification = createNotification()
         startForeground(NOTIFICATION_ID, notification)
+
+        // ✅ NUEVO: Verificar modo seguro
+        if (SafetyManager.isSafeModeActive(this)) {
+            Log.w(TAG, "🛡️ Modo seguro activo - Servicio detenido")
+            updateNotification("🛡️ Modo seguro activo")
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         // Verificar si somos Device Owner
         if (!policyManager.isDeviceOwner()) {
@@ -74,14 +80,10 @@ open class UnifiedSyncService : Service() {
         // Iniciar jobs
         startSyncJob()
         startEmergencyMonitorJob()
-        startLocationTracking() // ✅ AGREGAR ESTO
-
+        startLocationTracking()
 
         return START_STICKY
     }
-
-
-
 
     private fun tick(label: String) {
         val ts = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
@@ -90,15 +92,9 @@ open class UnifiedSyncService : Service() {
         updateNotification("$label @ $ts")
     }
 
-
-
-
-
-
-
-
     /**
      * Inicia el job de sincronización periódica
+     * ✅ ACTUALIZADO: Ahora sincroniza cada 30 minutos
      */
     private fun startSyncJob() {
         syncJob?.cancel()
@@ -112,7 +108,7 @@ open class UnifiedSyncService : Service() {
             // Sincronizaciones periódicas
             while (isActive) {
                 try {
-                    delay(SYNC_INTERVAL_MS)
+                    delay(SYNC_INTERVAL_MS) // ✅ 30 minutos
                     tick("Sync periódica")
                     syncPolicies()
                     syncRetryCount = 0 // Reset en éxito
@@ -141,11 +137,13 @@ open class UnifiedSyncService : Service() {
             }
         }
 
-        Log.i(TAG, "✅ Job de sincronización iniciado")
+        Log.i(TAG, "✅ Job de sincronización iniciado (cada 30 minutos)")
     }
 
-
-    // Después de startPeriodicSync(), agrega:
+    /**
+     * Tracking de ubicación
+     * ✅ ACTUALIZADO: Ahora envía ubicación cada 60 minutos
+     */
     private fun startLocationTracking() {
         locationUpdateJob?.cancel()
 
@@ -154,17 +152,25 @@ open class UnifiedSyncService : Service() {
                 try {
                     tick("Location: envío programado")
                     sendLocationUpdate()
-                    delay(15 * 60 * 1000) // 15 minutos
+                    delay(LOCATION_INTERVAL_MS) // ✅ 60 minutos
                 } catch (e: Exception) {
                     Log.e(TAG, "Error en tracking de ubicación: ${e.message}")
                     delay(5 * 60 * 1000) // Reintentar en 5 minutos
                 }
             }
         }
+
+        Log.i(TAG, "✅ Job de ubicación iniciado (cada 60 minutos)")
     }
 
     private suspend fun sendLocationUpdate() = withContext(Dispatchers.IO) {
         try {
+            // ✅ NUEVO: Verificar modo seguro
+            if (SafetyManager.isSafeModeActive(this@UnifiedSyncService)) {
+                Log.w(TAG, "🛡️ Modo seguro activo, saltando ubicación")
+                return@withContext
+            }
+
             if (!policyManager.isDeviceOwner()) {
                 Log.w(TAG, "No es Device Owner, saltando ubicación")
                 return@withContext
@@ -215,37 +221,36 @@ open class UnifiedSyncService : Service() {
         }
     }
 
-   /// @SuppressLint("MissingPermission")
-   @SuppressLint("MissingPermission")
-   private fun getLastKnownLocation(): android.location.Location? {
-       return try {
-           val locationManager = getSystemService(android.location.LocationManager::class.java)
+    @SuppressLint("MissingPermission")
+    private fun getLastKnownLocation(): android.location.Location? {
+        return try {
+            val locationManager = getSystemService(android.location.LocationManager::class.java)
 
-           // Intentar obtener de GPS primero
-           var location = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
+            // Intentar obtener de GPS primero
+            var location = locationManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER)
 
-           // Si no hay GPS, usar Network
-           if (location == null) {
-               location = locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
-           }
+            // Si no hay GPS, usar Network
+            if (location == null) {
+                location = locationManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER)
+            }
 
-           // Si no hay Network, usar Passive
-           if (location == null) {
-               location = locationManager.getLastKnownLocation(android.location.LocationManager.PASSIVE_PROVIDER)
-           }
+            // Si no hay Network, usar Passive
+            if (location == null) {
+                location = locationManager.getLastKnownLocation(android.location.LocationManager.PASSIVE_PROVIDER)
+            }
 
-           if (location != null) {
-               Log.i(TAG, "📍 Ubicación obtenida: ${location.latitude}, ${location.longitude}")
-           } else {
-               Log.w(TAG, "⚠️ No se pudo obtener ubicación")
-           }
+            if (location != null) {
+                Log.i(TAG, "📍 Ubicación obtenida: ${location.latitude}, ${location.longitude}")
+            } else {
+                Log.w(TAG, "⚠️ No se pudo obtener ubicación")
+            }
 
-           location
-       } catch (e: Exception) {
-           Log.e(TAG, "Error obteniendo ubicación: ${e.message}")
-           null
-       }
-   }
+            location
+        } catch (e: Exception) {
+            Log.e(TAG, "Error obteniendo ubicación: ${e.message}")
+            null
+        }
+    }
 
     private fun getBatteryLevel(): Int {
         return try {
@@ -256,11 +261,6 @@ open class UnifiedSyncService : Service() {
             -1
         }
     }
-
-
-
-
-
 
     /**
      * Inicia el job de monitoreo de modo emergencia
@@ -292,6 +292,13 @@ open class UnifiedSyncService : Service() {
         try {
             Log.i(TAG, "🔄 Sincronizando con servidor...")
 
+            // ✅ NUEVO: Verificar modo seguro
+            if (SafetyManager.isSafeModeActive(this)) {
+                Log.i(TAG, "🛡️ Modo seguro activo, omitiendo sincronización")
+                updateNotification("🛡️ Modo seguro activo")
+                return
+            }
+
             // No sincronizar si el modo emergencia está activo
             if (policyManager.isEmergencyUnlockActive()) {
                 Log.i(TAG, "🆘 Modo emergencia activo, omitiendo sincronización")
@@ -317,8 +324,6 @@ open class UnifiedSyncService : Service() {
         }
     }
 
-
-
     private suspend fun checkAutoUpdates() {
         try {
             Log.i(TAG, "🔄 Verificando auto-updates...")
@@ -337,8 +342,6 @@ open class UnifiedSyncService : Service() {
             Log.e(TAG, "Error verificando auto-updates: ${e.message}")
         }
     }
-
-
 
     /**
      * Verifica el estado del modo emergencia
@@ -428,7 +431,7 @@ open class UnifiedSyncService : Service() {
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("MDM Empresarial")
                 .setContentText(message)
-                .setSmallIcon(com.google.android.material.R.drawable.m3_split_button_chevron_avd)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setOngoing(true)
                 .setShowWhen(true)
@@ -451,7 +454,6 @@ open class UnifiedSyncService : Service() {
         emergencyMonitorJob?.cancel()
         locationUpdateJob?.cancel()
         serviceScope.cancel()
-
 
         Log.i(TAG, "❌ UnifiedSyncService destruido")
     }

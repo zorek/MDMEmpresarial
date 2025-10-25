@@ -16,7 +16,9 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import com.pfsmx.mdmempresarial.manager.BootLoopDetector
 import com.pfsmx.mdmempresarial.manager.PolicyManager
+import com.pfsmx.mdmempresarial.manager.SafetyManager
 import com.pfsmx.mdmempresarial.receiver.MDMDeviceAdminReceiver
 import com.pfsmx.mdmempresarial.service.SyncService
 import com.pfsmx.mdmempresarial.service.UnifiedSyncService
@@ -44,6 +46,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+
+
+
+
+
+
         policyManager = PolicyManager(this)
 
         initViews()
@@ -52,7 +60,53 @@ class MainActivity : AppCompatActivity() {
         // Programar sincronización periódica
         SyncWorker.scheduleSyncWork(this)
         startUnifiedSyncService()
+        checkSafeMode()
+
     }
+
+
+
+    private fun checkSafeMode() {
+        if (SafetyManager.isSafeModeActive(this)) {
+            AlertDialog.Builder(this)
+                .setTitle("⚠️ Modo Seguro Activo")
+                .setMessage("""
+                El sistema detectó un problema crítico y activó el modo seguro.
+                
+                En este modo NO se aplican políticas restrictivas.
+                
+                ${SafetyManager.getSafeModeInfo(this)}
+            """.trimIndent())
+                .setPositiveButton("Desactivar Modo Seguro") { _, _ ->
+                    SafetyManager.deactivateSafeMode(this)
+                    BootLoopDetector.disableSafeMode(this)
+                    Toast.makeText(
+                        this,
+                        "✅ Modo seguro desactivado. Las políticas se aplicarán en el próximo reinicio.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    recreate()
+                }
+                .setNegativeButton("Mantener Activo") { dialog, _ ->
+                    Toast.makeText(
+                        this,
+                        "🛡️ Modo seguro permanece activo.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    dialog.dismiss()
+                }
+                .setCancelable(false)
+                .show()
+        }
+    }
+
+
+
+
+
+
+
+
 
     fun Context.startUnifiedSyncService() {
         val intent = Intent(this, UnifiedSyncService::class.java)
